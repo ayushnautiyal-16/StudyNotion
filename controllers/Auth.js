@@ -156,8 +156,6 @@ exports.signUp = async (req, res) => {
         })
     }
 }
-
-// login
 exports.login = async (req, res) => {
     try {
         // get data from request ki body
@@ -182,7 +180,7 @@ exports.login = async (req, res) => {
             const payload = {
                 email: user.email,
                 id: user._id,
-                role: user.email,
+                accountType: user.accountType,
             }
             const token = jwt.sign(payload, process.env.JWT_SECRET, {
                 expiresIn: "2h",
@@ -218,4 +216,93 @@ exports.login = async (req, res) => {
     }
 };
 
+// changePassword
+// TODO homework
+// exports.changePassword = async(req,res)=>{
+    // get data from req body
+    // get old password, newpassword, confirmpassword
+    // validation
 
+    // update pwd in DB
+    // send email- password updated
+    // return res
+
+// }
+// changePassword
+exports.changePassword = async(req, res) => {
+    try {
+        // get data from req body
+        const { oldPassword, newPassword, confirmPassword } = req.body;
+        
+        // get user ID from auth middleware
+        const userId = req.user.id;
+        
+        // validation
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required",
+            });
+        }
+        
+        // check new password and confirm password match
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New password and confirm password do not match",
+            });
+        }
+        
+        // check if new password is same as old password
+        if (oldPassword === newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New password cannot be same as old password",
+            });
+        }
+        
+        // find user in database
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+        
+        // compare old password with database password
+        const isPasswordMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isPasswordMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Old password is incorrect",
+            });
+        }
+        
+        // hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // update password in database
+        await User.findByIdAndUpdate(userId, { password: hashedPassword }, { new: true });
+        
+        // send email - password updated
+        await mailSender(
+            user.email,
+            "Password Changed Successfully",
+            `Your password has been changed successfully. If you did not make this change, please contact support immediately.`
+        );
+        
+        // return response
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully",
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: "Error while changing password",
+        });
+    }
+}
